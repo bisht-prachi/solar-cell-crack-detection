@@ -3,3 +3,4 @@ torch
 transformers
 opencv-python-headless
 Pillow
+segmentation_models_pytorch

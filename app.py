@@ -1,39 +1,39 @@
-# app.py — crack‑segmentation demo with brightness/contrast slider & example gallery
+# app.py — crack segmentation demo with CLAHE + Gradio for smp.Unet
 import os, cv2, torch, numpy as np
 from PIL import Image
 import gradio as gr
-from transformers import (
-    SegformerFeatureExtractor,
-    SegformerForSemanticSegmentation
-)
+import torchvision.transforms as T
+import segmentation_models_pytorch as smp
 
 # ───────── CONFIG ───────────────────────────────────────────────────────
-CKPT_PATH = "best_segformer_b0.pth"         # your fine‑tuned weights
+CKPT_PATH = "best_model.pth"         # your fine‑tuned weights
 DEVICE    = "cuda" if torch.cuda.is_available() else "cpu"
-THR       = 0.50                            # probability threshold
-IMG_SIZE  = 512                             # extractor resize
+THR       = 0.50                      # probability threshold
+IMG_SIZE  = 448                       # input size to match training
 
-# ───────── LOAD MODEL & EXTRACTOR ──────────────────────────────────────
+# ───────── LOAD U‑NET MODEL ────────────────────────────────────────────
 print("Loading model …")
-model = SegformerForSemanticSegmentation.from_pretrained(
-    "nvidia/segformer-b0-finetuned-ade-512-512",
-    num_labels=2,
-    ignore_mismatched_sizes=True,
+model = smp.Unet(
+    encoder_name="resnet34",        # or mobilenet_v2 etc.
+    encoder_weights="imagenet",
+    in_channels=3,
+    classes=1,
+    activation=None
 )
 model.load_state_dict(torch.load(CKPT_PATH, map_location=DEVICE))
 model.to(DEVICE).eval()
 
-feature_extractor = SegformerFeatureExtractor(
-    do_resize=True,
-    size=IMG_SIZE,
-    do_normalize=True,
-    reduce_labels=False,
-)
+# ───────── TRANSFORM (MATCH TRAINING NORMALIZATION) ─────────────────────
+transform = T.Compose([
+    T.ToTensor(),                               # [H,W,C] → [C,H,W]
+    T.Resize((IMG_SIZE, IMG_SIZE)),             # resize for model
+    T.Normalize(mean=[0.485, 0.456, 0.406],      # ImageNet stats
+                std=[0.229, 0.224, 0.225])
+])
 
-# ───────── OPTIONAL CONTRAST ENHANCEMENT ───────────────────────────────-
-
+# ───────── CONTRAST ENHANCEMENT ─────────────────────────────────────────
 def enhance_contrast(rgb_uint8: np.ndarray, clip: float = 1.0) -> np.ndarray:
-    """Apply CLAHE contrast enhancement if clip>0 (approx range 0–3)."""
+    """Apply CLAHE contrast enhancement if clip > 0 (approx 0–3)."""
     if clip <= 0.01:
         return rgb_uint8
     lab = cv2.cvtColor(rgb_uint8, cv2.COLOR_RGB2LAB)
@@ -44,49 +44,46 @@ def enhance_contrast(rgb_uint8: np.ndarray, clip: float = 1.0) -> np.ndarray:
     return cv2.cvtColor(merged, cv2.COLOR_LAB2RGB)
 
 # ───────── INFERENCE FUNCTION ───────────────────────────────────────────
-
 def predict_mask(pil_img: Image.Image, contrast: float = 0.0):
-    """Return (original, mask, overlay) PIL images."""
+    """Return (enhanced original, predicted mask, overlay) PIL images."""
     np_img = np.array(pil_img)
-
-    # optional brightness/contrast enhancement for better visibility
     np_img_enh = enhance_contrast(np_img, clip=contrast)
 
-    # model expects BGR; extractor handles resize / norm
-    img_bgr = cv2.cvtColor(np_img_enh, cv2.COLOR_RGB2BGR)
-    enc = feature_extractor(images=img_bgr, return_tensors="pt").to(DEVICE)
+    # prepare model input
+    img_tensor = transform(Image.fromarray(np_img_enh)).unsqueeze(0).to(DEVICE)
 
     with torch.no_grad():
-        logits = model(**enc).logits                  # [1,2,128,128]
-        probs  = torch.softmax(logits, dim=1)[:, 1:2] # crack probability map
-        preds  = (probs > THR).float()               # hard mask @128×128
+        logits = model(img_tensor)                # [1,1,H,W]
+        probs = torch.sigmoid(logits)
+        preds = (probs > THR).float()             # binary mask
 
-        h, w = pil_img.height, pil_img.width
-        mask_up = torch.nn.functional.interpolate(
-            preds, size=(h, w), mode="nearest"
-        ).squeeze().cpu().numpy().astype(np.uint8)    # [H,W] {0,1}
+        # upsample mask to original image size
+        preds_up = torch.nn.functional.interpolate(
+            preds, size=pil_img.size[::-1], mode="nearest"
+        ).squeeze().cpu().numpy().astype(np.uint8)
 
-    mask_pil = Image.fromarray(mask_up * 255)
+    mask_pil = Image.fromarray(preds_up * 255)
 
+    # overlay
     overlay = np_img_enh.copy()
-    overlay[mask_up == 1] = [255, 0, 0]  # red overlay for crack
+    overlay[preds_up == 1] = [255, 0, 0]
     overlay_pil = Image.fromarray(overlay)
 
     return Image.fromarray(np_img_enh), mask_pil, overlay_pil
 
-# ───────── PRE‑LOADED EXAMPLE IMAGES  ───────────────────────────────────
-EXAMPLES_DIR = "examples"  # put a few sample jpgs here
+# ───────── PRE‑LOADED EXAMPLES ──────────────────────────────────────────
+EXAMPLES_DIR = "examples"
 example_files = []
 if os.path.isdir(EXAMPLES_DIR):
     example_files = [[os.path.join(EXAMPLES_DIR, f)]
                      for f in sorted(os.listdir(EXAMPLES_DIR))
                      if f.lower().endswith((".jpg", ".png"))][:8]
 
-# ───────── GRADIO INTERFACE ────────────────────────────────────────────
+# ───────── GRADIO APP ───────────────────────────────────────────────────
 IMAGE_OPTS = {"height": 256, "width": 256}
 
-with gr.Blocks(title="Solar‑Cell Crack Segmentation (SegFormer‑B0)") as demo:
-    gr.Markdown("## Solar‑Cell Crack Segmentation using SegFormer‑B0\nUpload an EL image or choose an example. Adjust **Contrast Enhance** if the image is too dark.")
+with gr.Blocks(title="Solar‑Cell Crack Segmentation (U‑Net)") as demo:
+    gr.Markdown("## Solar‑Cell Crack Segmentation using U‑Net\nUpload an EL image or choose an example. Adjust **Contrast Enhance** if the image is too dark.")
 
     with gr.Row():
         inp_img = gr.Image(type="pil", label="Input EL image")
