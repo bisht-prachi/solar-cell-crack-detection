@@ -195,7 +195,7 @@ def predict_mask(pil_img: Image.Image, contrast: float = 0.0, gt_pil: Image.Imag
 
 # ───────── EXAMPLE IMAGES ──────────────────────────────────────────────
 EXAMPLES_DIR = "examples"
-example_files = [[os.path.join(EXAMPLES_DIR, f)] for f in sorted(os.listdir(EXAMPLES_DIR)) if f.lower().endswith((".jpg", ".png"))][:8] if os.path.isdir(EXAMPLES_DIR) else []
+example_files = [[os.path.join(EXAMPLES_DIR, f)] for f in sorted(os.listdir(EXAMPLES_DIR)) if f.lower().endswith((".jpg", ".png"))][:23] if os.path.isdir(EXAMPLES_DIR) else []
 
 # ───────── GRADIO UI ───────────────────────────────────────────────────
 IMAGE_OPTS = {"height": 256, "width": 256}
