@@ -1,3 +1,4 @@
+https://huggingface.co/spaces/bishtp/solar-cell-crack-detection/settings
 ---
 title: Solar Cell Crack Detection
 emoji: ⚡
