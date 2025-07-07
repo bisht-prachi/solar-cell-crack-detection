@@ -1,17 +1,8 @@
 demo @ https://huggingface.co/spaces/bishtp/solar-cell-crack-detection/settings
 
-| Key              | Value                                         |
-|------------------|-----------------------------------------------|
-| **Title**         | Solar Cell Crack Detection                    |
-| **Emoji**         | ⚡                                            |
-| **Color From**    | green                                         |
-| **Color To**      | gray                                          |
-| **SDK**           | gradio                                        |
-| **SDK Version**   | 5.34.2                                        |
-| **App File**      | app.py                                        |
-| **Pinned**        | false                                         |
-| **License**       | apache-2.0                                    |
-| **Short Description** | Segmentation model for solar cell crack detection |
+| Title                     | Emoji | Color From | Color To | SDK    | SDK Version | App File | Pinned | License    | Short Description                                   |
+|---------------------------|-------|-------------|-----------|--------|--------------|-----------|--------|-------------|------------------------------------------------------|
+| Solar Cell Crack Detection | ⚡    | green       | gray      | gradio | 5.34.2       | app.py   | false  | apache-2.0 | Segmentation model for solar cell crack detection   |
 
 
 Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
