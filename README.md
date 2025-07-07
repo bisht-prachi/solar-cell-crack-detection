@@ -1,4 +1,4 @@
-demo @ https://huggingface.co/spaces/bishtp/solar-cell-crack-detection/settings
+demo @ https://huggingface.co/spaces/bishtp/solar-cell-crack-detection/
 
 | Title                     | Emoji | Color From | Color To | SDK    | SDK Version | App File | Pinned | License    | Short Description                                   |
 |---------------------------|-------|-------------|-----------|--------|--------------|-----------|--------|-------------|------------------------------------------------------|
